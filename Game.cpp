@@ -6,6 +6,11 @@
 #include "Window.h"
 
 #include <DirectXMath.h>
+// This code assumes files are in "ImGui" subfolder!
+// Adjust as necessary for your own folder structure and project setup
+#include "ImGui/imgui.h"
+#include "ImGui/imgui_impl_dx11.h"
+#include "ImGui/imgui_impl_win32.h"
 
 // Needed for a helper function to load pre-compiled shader files
 #pragma comment(lib, "d3dcompiler.lib")
@@ -13,6 +18,15 @@
 
 // For the DirectX Math library
 using namespace DirectX;
+
+// Anonymous namespace for private variables
+namespace {
+	float color[4] = { 0.4f, 0.6f, 0.75f, 0.0f };
+	bool showDemoWindow = false;
+	bool showTriangle = true;
+	int sliderNum = 0;
+	std::string windowName = "Debug Inspector";
+}
 
 // --------------------------------------------------------
 // Called once per program, after the window and graphics API
@@ -47,6 +61,16 @@ void Game::Initialize()
 		Graphics::Context->VSSetShader(vertexShader.Get(), 0, 0);
 		Graphics::Context->PSSetShader(pixelShader.Get(), 0, 0);
 	}
+
+	// Initialize ImGui itself & platform/renderer backends
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGui_ImplWin32_Init(Window::Handle());
+	ImGui_ImplDX11_Init(Graphics::Device.Get(), Graphics::Context.Get());
+	// Pick a style (uncomment one of these 3)
+	ImGui::StyleColorsDark();
+	//ImGui::StyleColorsLight();
+	ImGui::StyleColorsClassic();
 }
 
 
@@ -58,7 +82,10 @@ void Game::Initialize()
 // --------------------------------------------------------
 Game::~Game()
 {
-
+	// ImGui clean up
+	ImGui_ImplDX11_Shutdown();
+	ImGui_ImplWin32_Shutdown();
+	ImGui::DestroyContext();
 }
 
 
@@ -235,6 +262,7 @@ void Game::OnResize()
 }
 
 
+
 // --------------------------------------------------------
 // Update your game here - user input, move objects, AI, etc.
 // --------------------------------------------------------
@@ -243,6 +271,8 @@ void Game::Update(float deltaTime, float totalTime)
 	// Example input checking: Quit if the escape key is pressed
 	if (Input::KeyDown(VK_ESCAPE))
 		Window::Quit();
+	ResetUI(deltaTime);
+	BuildUI();
 }
 
 
@@ -256,7 +286,6 @@ void Game::Draw(float deltaTime, float totalTime)
 	// - At the beginning of Game::Draw() before drawing *anything*
 	{
 		// Clear the back buffer (erase what's on screen) and depth buffer
-		const float color[4] = { 0.4f, 0.6f, 0.75f, 0.0f };
 		Graphics::Context->ClearRenderTargetView(Graphics::BackBufferRTV.Get(),	color);
 		Graphics::Context->ClearDepthStencilView(Graphics::DepthBufferDSV.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
 	}
@@ -264,6 +293,7 @@ void Game::Draw(float deltaTime, float totalTime)
 	// DRAW geometry
 	// - These steps are generally repeated for EACH object you draw
 	// - Other Direct3D calls will also be necessary to do more complex things
+	if (showTriangle)
 	{
 		// Set buffers in the input assembler (IA) stage
 		//  - Do this ONCE PER OBJECT, since each object may have different geometry
@@ -287,6 +317,8 @@ void Game::Draw(float deltaTime, float totalTime)
 			0);    // Offset to add to each index when looking up vertices
 	}
 
+	ImGui::Render(); // Turns this frame’s UI into renderable triangles
+	ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData()); // Draws it to the screen
 	// Frame END
 	// - These should happen exactly ONCE PER FRAME
 	// - At the very end of the frame (after drawing *everything*)
@@ -305,5 +337,55 @@ void Game::Draw(float deltaTime, float totalTime)
 	}
 }
 
+void Game::ResetUI(float deltaTime) {
+	// Feed fresh data to ImGui
+	ImGuiIO& io = ImGui::GetIO();
+	io.DeltaTime = deltaTime;
+	io.DisplaySize.x = (float)Window::Width();
+	io.DisplaySize.y = (float)Window::Height();
+	// Reset the frame
+	ImGui_ImplDX11_NewFrame();
+	ImGui_ImplWin32_NewFrame();
+	ImGui::NewFrame();
+	// Determine new input capture
+	Input::SetKeyboardCapture(io.WantCaptureKeyboard);
+	Input::SetMouseCapture(io.WantCaptureMouse);
+	// Show the demo window
+	//ImGui::ShowDemoWindow();
+}
+
+void Game::BuildUI() {
+	ImGui::Begin(windowName.c_str());
+	ImGui::Text("Framerate: %f fps", ImGui::GetIO().Framerate);
+	ImGui::Text("Window Resolution: %dx%d", Window::Width(), Window::Height());
+	ImGui::ColorEdit4("Background Color", &color[0]);
+	if (ImGui::Button("Show Demo Window")) {
+		showDemoWindow = !showDemoWindow;
+	}
+	if (showDemoWindow) {
+		ImGui::ShowDemoWindow();
+	}
+	ImGui::Text("Window Title: ");
+	ImGui::SameLine();
+	static int active = 0;
+	if (ImGui::RadioButton("Debug Inspector", &active, 0)) {
+		windowName = "Debug Inspector";
+	}
+	ImGui::SameLine();
+	if (ImGui::RadioButton("Debug Window", &active, 1)) {
+		windowName = "Debug Window";
+	}
+	ImGui::SameLine();
+	if (ImGui::RadioButton("Inspector Window", &active, 2)) {
+		windowName = "Inspector Window";
+	}
+	static bool checked = true;
+	if (ImGui::Checkbox("Show Triangle",&checked)) {
+		showTriangle = !showTriangle;
+	}
+	ImGui::SliderInt("Slider Test", &sliderNum, 0, 100);
+	ImGui::End();
+	
+}
 
 
