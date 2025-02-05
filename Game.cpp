@@ -4,6 +4,7 @@
 #include "Input.h"
 #include "PathHelpers.h"
 #include "Window.h"
+#include "BufferStructs.h"
 
 
 #include <DirectXMath.h>
@@ -25,7 +26,8 @@ namespace {
 	float color[4] = { 0.4f, 0.6f, 0.75f, 0.0f };
 	bool showDemoWindow = false;
 	bool showTriangle = true;
-	int sliderNum = 0;
+	XMFLOAT4 colorTint = XMFLOAT4(1.0f,1.0f,1.0f,1.0f);
+	XMFLOAT3 meshPos = XMFLOAT3(0.0f,0.0f,0.0f);
 	std::string windowName = "Debug Inspector";
 }
 
@@ -61,6 +63,16 @@ void Game::Initialize()
 		//    these calls will need to happen multiple times per frame
 		Graphics::Context->VSSetShader(vertexShader.Get(), 0, 0);
 		Graphics::Context->PSSetShader(pixelShader.Get(), 0, 0);
+		unsigned int byteSize = sizeof(ConstantBufferData);
+		byteSize = (byteSize + 15) / 16 * 16;
+		D3D11_BUFFER_DESC cbDesc = {};
+		cbDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+		cbDesc.ByteWidth = byteSize;
+		cbDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+		cbDesc.Usage = D3D11_USAGE_DYNAMIC;
+
+		Graphics::Device->CreateBuffer(&cbDesc, 0, cBuffer.GetAddressOf());
+		Graphics::Context->VSSetConstantBuffers(0,1,cBuffer.GetAddressOf()); 
 	}
 
 	// Initialize ImGui itself & platform/renderer backends
@@ -253,6 +265,15 @@ void Game::Draw(float deltaTime, float totalTime)
 		Graphics::Context->ClearRenderTargetView(Graphics::BackBufferRTV.Get(),	color);
 		Graphics::Context->ClearDepthStencilView(Graphics::DepthBufferDSV.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
 	}
+	// Copy data into constant buffer
+	ConstantBufferData cbData;
+	cbData.colorTint = colorTint;
+	cbData.offset = meshPos;
+
+	D3D11_MAPPED_SUBRESOURCE mappedBuffer = {};
+	Graphics::Context->Map(cBuffer.Get(),0,D3D11_MAP_WRITE_DISCARD,0,&mappedBuffer);
+	memcpy(mappedBuffer.pData, &cbData, sizeof(cbData));
+	Graphics::Context->Unmap(cBuffer.Get(),0);
 
 	// DRAW geometry
 	// - These steps are generally repeated for EACH object you draw
@@ -330,7 +351,8 @@ void Game::BuildUI() {
 	if (ImGui::Checkbox("Show Triangle",&checked)) {
 		showTriangle = !showTriangle;
 	}
-	ImGui::SliderInt("Slider Test", &sliderNum, 0, 100);
+	ImGui::ColorEdit4("Mesh Color Tint",&colorTint.x);
+	ImGui::SliderFloat3("Meshes Position: ", &meshPos.x, -1,1);
 	if (ImGui::TreeNode("Meshes")) {
 		for (int i = 0; i < meshes.size();i++) {
 			if(i==0)

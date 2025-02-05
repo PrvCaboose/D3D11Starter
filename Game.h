@@ -43,6 +43,9 @@ private:
 	Microsoft::WRL::ComPtr<ID3D11VertexShader> vertexShader;
 	Microsoft::WRL::ComPtr<ID3D11InputLayout> inputLayout;
 
+	// Constant Buffer
+	Microsoft::WRL::ComPtr<ID3D11Buffer> cBuffer;
+
 	// Mesh objects
 	std::shared_ptr<Mesh> triangle;
 	std::shared_ptr<Mesh> square;
