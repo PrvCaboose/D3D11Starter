@@ -5,6 +5,7 @@
 #include <memory>
 #include "Mesh.h"
 #include <vector>
+#include "GameEntity.h"
 
 class Game
 {
@@ -51,6 +52,7 @@ private:
 	std::shared_ptr<Mesh> square;
 	std::shared_ptr<Mesh> octagon;
 	std::vector<std::shared_ptr<Mesh>> meshes;
+	std::vector<std::shared_ptr<GameEntity>> entities;
 
 };
 

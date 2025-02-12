@@ -26,8 +26,8 @@ namespace {
 	float color[4] = { 0.4f, 0.6f, 0.75f, 0.0f };
 	bool showDemoWindow = false;
 	bool showTriangle = true;
-	XMFLOAT4 colorTint = XMFLOAT4(1.0f,1.0f,1.0f,1.0f);
-	XMFLOAT3 meshPos = XMFLOAT3(0.0f,0.0f,0.0f);
+	XMFLOAT4 colorTint = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+
 	std::string windowName = "Debug Inspector";
 }
 
@@ -84,7 +84,6 @@ void Game::Initialize()
 	ImGui::StyleColorsDark();
 	//ImGui::StyleColorsLight();
 	ImGui::StyleColorsClassic();
-	
 	
 }
 
@@ -221,11 +220,32 @@ void Game::CreateGeometry()
 		{ XMFLOAT3(-0.35f, -0.0f, +0.0f), blue }, // 7
 		{ XMFLOAT3(-0.25f, +0.35f, +0.0f), green }, // 8
 	};
-	unsigned int octagonIndices[] = { 0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 4, 5, 0, 5, 6, 0, 6, 7, 0, 7, 8, 0, 8, 1 };
+	unsigned int octagonIndices[] = 
+	{ 0, 1, 2, 
+	  0, 2, 3,
+	  0, 3, 4,
+	  0, 4, 5,
+	  0, 5, 6,
+	  0, 6, 7,
+	  0, 7, 8,
+	  0, 8, 1 };
 	octagon = std::make_shared<Mesh>(octagonVertices, octagonIndices, 
 		(int)ARRAYSIZE(octagonVertices),
 		(int)ARRAYSIZE(octagonIndices));
 	meshes.push_back(octagon);
+
+	std::shared_ptr<GameEntity> e1 = std::make_shared<GameEntity>(triangle);
+	std::shared_ptr<GameEntity> e2 = std::make_shared<GameEntity>(triangle);
+	std::shared_ptr<GameEntity> e3 = std::make_shared<GameEntity>(triangle);
+	std::shared_ptr<GameEntity> e4 = std::make_shared<GameEntity>(square);
+	std::shared_ptr<GameEntity> e5 = std::make_shared<GameEntity>(octagon);
+
+
+	entities.push_back(e1);
+	entities.push_back(e2);
+	entities.push_back(e3);
+	entities.push_back(e4);
+	entities.push_back(e5);
 }
 
 
@@ -265,24 +285,23 @@ void Game::Draw(float deltaTime, float totalTime)
 		Graphics::Context->ClearRenderTargetView(Graphics::BackBufferRTV.Get(),	color);
 		Graphics::Context->ClearDepthStencilView(Graphics::DepthBufferDSV.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
 	}
-	// Copy data into constant buffer
-	ConstantBufferData cbData;
-	cbData.colorTint = colorTint;
-	cbData.offset = meshPos;
-
-	D3D11_MAPPED_SUBRESOURCE mappedBuffer = {};
-	Graphics::Context->Map(cBuffer.Get(),0,D3D11_MAP_WRITE_DISCARD,0,&mappedBuffer);
-	memcpy(mappedBuffer.pData, &cbData, sizeof(cbData));
-	Graphics::Context->Unmap(cBuffer.Get(),0);
+	
 
 	// DRAW geometry
 	// - These steps are generally repeated for EACH object you draw
 	// - Other Direct3D calls will also be necessary to do more complex things
 	if (showTriangle)
 	{
-		for (int i=0;i<meshes.size(); i++) {
-			meshes[i]->Draw();
+		for (int i=0;i<entities.size(); i++) {
+			entities[i]->Draw(cBuffer);
 		}
+		float sinWave = (float)sin(totalTime);
+		// Move entities
+		entities[0].get()->GetTransform()->SetPosition(sinWave, 0, 0);
+		entities[1].get()->GetTransform()->SetPosition(0,sinWave, 0);
+		entities[2].get()->GetTransform()->SetPosition(sinWave,sinWave,0);
+		entities[4].get()->GetTransform()->SetScale(sinWave, sinWave, sinWave);
+		entities[3].get()->GetTransform()->Rotate(0,0,1 * deltaTime);
 	}
 
 	ImGui::Render(); // Turns this frame’s UI into renderable triangles
@@ -352,11 +371,37 @@ void Game::BuildUI() {
 		showTriangle = !showTriangle;
 	}
 	ImGui::ColorEdit4("Mesh Color Tint",&colorTint.x);
-	ImGui::SliderFloat3("Meshes Position: ", &meshPos.x, -1,1);
+	// Entity UI
+	if (ImGui::TreeNode("Entities"))
+	{
+		for (int i = 0; i < entities.size();i++) {
+			ImGui::PushID(i);
+			if (ImGui::TreeNode("","Entity %d ",i))
+			{
+				std::shared_ptr<Transform> eTransform = entities[i]->GetTransform();
+				XMFLOAT3 pos = eTransform->GetPosition();
+				XMFLOAT3 rot = eTransform->GetPitchYawRoll();
+				XMFLOAT3 scale = eTransform->GetScale();
+				
+				if (ImGui::DragFloat3("Position", &pos.x,0.01)) {
+					eTransform->SetPosition(pos);
+				}
+				if (ImGui::DragFloat3("Rotation", &rot.x,0.01)) {
+					eTransform->SetRotation(rot);
+				}
+				if (ImGui::DragFloat3("Scale", &scale.x,0.01)) {
+					eTransform->SetScale(scale);
+				}
+				ImGui::Text("Mesh Indices: %d", entities[i]->GetMesh()->GetIndexCount());
+				ImGui::TreePop();
+			}
+			ImGui::PopID();
+		}
+		ImGui::TreePop();
+	}
+	// Mesh UI
 	if (ImGui::TreeNode("Meshes")) {
 		for (int i = 0; i < meshes.size();i++) {
-			if(i==0)
-				ImGui::SetNextItemOpen(true, ImGuiCond_Once);
 			ImGui::PushID(i);
 			if (ImGui::TreeNode("", "Mesh %d ",i)) {
 				ImGui::Text("Triangles: %d", meshes[i]->GetIndexCount() / 3);
