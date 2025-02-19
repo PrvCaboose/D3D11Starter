@@ -27,7 +27,7 @@ namespace {
 	bool showDemoWindow = false;
 	bool showTriangle = true;
 	XMFLOAT4 colorTint = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-
+	int currentCamIndex = 0;
 	std::string windowName = "Debug Inspector";
 }
 
@@ -84,7 +84,25 @@ void Game::Initialize()
 	ImGui::StyleColorsDark();
 	//ImGui::StyleColorsLight();
 	ImGui::StyleColorsClassic();
-	
+
+	mainCam = std::make_shared<Camera>(
+		XMFLOAT3(-1.0f,0.0f,-2.0f),		// Init position
+		Window::AspectRatio(),	// Aspect ratio
+		(3.1415962f/4.0f),		// FOV
+		0.01f,					// Near clip
+		1000.0f,				// Far clip
+		10.0f,						// Move speed
+		0.001f);						// Look speed
+	secondCam = std::make_shared<Camera>(
+		XMFLOAT3(1.0f, 0.0f, -4.0f),		// Init position
+		Window::AspectRatio(),	// Aspect ratio
+		(3.1415962f / 2.0f),		// FOV
+		0.01f,					// Near clip
+		1000.0f,				// Far clip
+		15.0f,						// Move speed
+		0.001f);				// Look speed
+	cameras.push_back(mainCam);
+	cameras.push_back(secondCam);
 }
 
 
@@ -255,6 +273,10 @@ void Game::CreateGeometry()
 // --------------------------------------------------------
 void Game::OnResize()
 {
+	for (int i = 0; i < cameras.size(); i++)
+	{
+		cameras[i]->UpdateProjectionMatrix(Window::AspectRatio());
+	}
 }
 
 
@@ -268,6 +290,7 @@ void Game::Update(float deltaTime, float totalTime)
 	if (Input::KeyDown(VK_ESCAPE))
 		Window::Quit();
 	ResetUI(deltaTime);
+	cameras[currentCamIndex]->Update(deltaTime);
 	BuildUI();
 }
 
@@ -293,7 +316,7 @@ void Game::Draw(float deltaTime, float totalTime)
 	if (showTriangle)
 	{
 		for (int i=0;i<entities.size(); i++) {
-			entities[i]->Draw(cBuffer);
+			entities[i]->Draw(cBuffer, cameras[currentCamIndex]);
 		}
 		float sinWave = (float)sin(totalTime);
 		// Move entities
@@ -352,24 +375,41 @@ void Game::BuildUI() {
 	if (showDemoWindow) {
 		ImGui::ShowDemoWindow();
 	}
-	ImGui::Text("Window Title: ");
+	ImGui::Text("Select Camera: ");
 	ImGui::SameLine();
 	static int active = 0;
-	if (ImGui::RadioButton("Debug Inspector", &active, 0)) {
-		windowName = "Debug Inspector";
+	if (ImGui::RadioButton("Camera 1", &active, 0)) {
+		currentCamIndex = 0;
 	}
 	ImGui::SameLine();
-	if (ImGui::RadioButton("Debug Window", &active, 1)) {
-		windowName = "Debug Window";
+	if (ImGui::RadioButton("Camera 2", &active, 1)) {
+		currentCamIndex = 1;
 	}
-	ImGui::SameLine();
-	if (ImGui::RadioButton("Inspector Window", &active, 2)) {
-		windowName = "Inspector Window";
+	if (ImGui::TreeNode("Active Camera"))
+	{
+		if (ImGui::TreeNode("Controls"))
+		{
+			ImGui::Text("W: Forward");
+			ImGui::Text("A: Left");
+			ImGui::Text("S: Back");
+			ImGui::Text("D: Right");
+			ImGui::Text("Shift: Speed Up");
+			ImGui::Text("Control: Slow Down");
+			ImGui::Text("Space: Up");
+			ImGui::Text("X: Down");
+			ImGui::Text("Hold Left Mouse Button: Look Around");
+			ImGui::TreePop();
+		}
+		XMFLOAT3 pos = cameras[currentCamIndex]->GetPosition();
+		ImGui::Text("Camera Position: X:%.2f Y:%.2f Z:%.2f",pos.x,pos.y,pos.z);
+		ImGui::Text("Field of View: %.1f Degrees", cameras[currentCamIndex]->GetFov() * (180/3.141598623));
+		ImGui::TreePop();
 	}
 	static bool checked = true;
 	if (ImGui::Checkbox("Show Triangle",&checked)) {
 		showTriangle = !showTriangle;
 	}
+
 	ImGui::ColorEdit4("Mesh Color Tint",&colorTint.x);
 	// Entity UI
 	if (ImGui::TreeNode("Entities"))
@@ -383,13 +423,13 @@ void Game::BuildUI() {
 				XMFLOAT3 rot = eTransform->GetPitchYawRoll();
 				XMFLOAT3 scale = eTransform->GetScale();
 				
-				if (ImGui::DragFloat3("Position", &pos.x,0.01)) {
+				if (ImGui::DragFloat3("Position", &pos.x,0.01f)) {
 					eTransform->SetPosition(pos);
 				}
-				if (ImGui::DragFloat3("Rotation", &rot.x,0.01)) {
+				if (ImGui::DragFloat3("Rotation", &rot.x,0.01f)) {
 					eTransform->SetRotation(rot);
 				}
-				if (ImGui::DragFloat3("Scale", &scale.x,0.01)) {
+				if (ImGui::DragFloat3("Scale", &scale.x,0.01f)) {
 					eTransform->SetScale(scale);
 				}
 				ImGui::Text("Mesh Indices: %d", entities[i]->GetMesh()->GetIndexCount());

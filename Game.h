@@ -6,6 +6,7 @@
 #include "Mesh.h"
 #include <vector>
 #include "GameEntity.h"
+#include "Camera.h"
 
 class Game
 {
@@ -54,5 +55,9 @@ private:
 	std::vector<std::shared_ptr<Mesh>> meshes;
 	std::vector<std::shared_ptr<GameEntity>> entities;
 
+	// Camera
+	std::shared_ptr<Camera> mainCam;
+	std::shared_ptr<Camera> secondCam;
+	std::vector<std::shared_ptr<Camera>> cameras;
 };
 
