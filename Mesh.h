@@ -30,6 +30,8 @@ class Mesh
 		}
 
 		Mesh(Vertex vertices[], unsigned int indices[], int numVertices, int numIndices);
+		Mesh(const char* fileName);
+		void CreateBuffers(Vertex vertices[], unsigned int indices[], int numVertices, int numIndices);
 		void Draw();
 		~Mesh();
 };

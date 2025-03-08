@@ -3,8 +3,8 @@
 #include "Graphics.h"
 #include "Camera.h"
 
-GameEntity::GameEntity(std::shared_ptr<Mesh> mesh) :
-	mesh(mesh)
+GameEntity::GameEntity(std::shared_ptr<Mesh> mesh, std::shared_ptr<Material> material) :
+	mesh(mesh), material(material)
 {
 	transform = std::make_shared<Transform>();
 }
@@ -19,18 +19,30 @@ std::shared_ptr<Transform> GameEntity::GetTransform()
 	return transform;
 }
 
-void GameEntity::Draw(Microsoft::WRL::ComPtr<ID3D11Buffer> cBuffer, std::shared_ptr<Camera> cam)
+std::shared_ptr<Material> GameEntity::GetMaterial()
 {
-	// Copy data into constant buffer
-	ConstantBufferData cbData;
-	cbData.colorTint = DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-	cbData.worldMatrix = transform->GetWorldMatrix();
-	cbData.viewMatrix = cam->GetView();
-	cbData.projMatrix = cam->GetProj();
+	return material;
+}
 
-	D3D11_MAPPED_SUBRESOURCE mappedBuffer = {};
-	Graphics::Context->Map(cBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedBuffer);
-	memcpy(mappedBuffer.pData, &cbData, sizeof(cbData));
-	Graphics::Context->Unmap(cBuffer.Get(), 0);
+void GameEntity::SetMaterial(std::shared_ptr<Material> material)
+{
+	this->material = material;
+}
+
+void GameEntity::Draw(std::shared_ptr<Camera> cam)
+{
+	material->GetVertexShader()->SetShader();
+	material->GetPixelShader()->SetShader();
+
+	//material->GetVertexShader()->SetFloat4("colorTint", material->GetColorTint());
+	material->GetVertexShader()->SetMatrix4x4("worldMatrix", transform->GetWorldMatrix());
+	material->GetVertexShader()->SetMatrix4x4("viewMatrix", cam->GetView());
+	material->GetVertexShader()->SetMatrix4x4("projMatrix", cam->GetProj());
+
+	material->GetVertexShader()->CopyAllBufferData();
+
+	material->GetPixelShader()->SetFloat4("colorTint", material->GetColorTint());
+	material->GetPixelShader()->CopyAllBufferData();
+
 	mesh->Draw();
 }

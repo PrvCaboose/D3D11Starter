@@ -41,17 +41,15 @@ private:
 	Microsoft::WRL::ComPtr<ID3D11Buffer> indexBuffer;
 
 	// Shaders and shader-related constructs
-	Microsoft::WRL::ComPtr<ID3D11PixelShader> pixelShader;
-	Microsoft::WRL::ComPtr<ID3D11VertexShader> vertexShader;
-	Microsoft::WRL::ComPtr<ID3D11InputLayout> inputLayout;
-
-	// Constant Buffer
-	Microsoft::WRL::ComPtr<ID3D11Buffer> cBuffer;
 
 	// Mesh objects
-	std::shared_ptr<Mesh> triangle;
-	std::shared_ptr<Mesh> square;
-	std::shared_ptr<Mesh> octagon;
+	std::shared_ptr<Mesh> cube;
+	std::shared_ptr<Mesh> cylinder;
+	std::shared_ptr<Mesh> helix;
+	std::shared_ptr<Mesh> quad;
+	std::shared_ptr<Mesh> quad_2F;
+	std::shared_ptr<Mesh> sphere;
+	std::shared_ptr<Mesh> torus;
 	std::vector<std::shared_ptr<Mesh>> meshes;
 	std::vector<std::shared_ptr<GameEntity>> entities;
 
