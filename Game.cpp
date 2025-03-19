@@ -7,6 +7,7 @@
 #include "BufferStructs.h"
 #include "SimpleShader.h"
 #include "Material.h"
+#include "WICTextureLoader.h"
 
 
 #include <DirectXMath.h>
@@ -31,6 +32,7 @@ namespace {
 	XMFLOAT4 colorTint = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 	int currentCamIndex = 0;
 	std::string windowName = "Debug Inspector";
+
 }
 
 // --------------------------------------------------------
@@ -225,28 +227,61 @@ void Game::CreateGeometry()
 		Graphics::Device, Graphics::Context, FixPath(L"DebugNormalsPS.cso").c_str());
 	std::shared_ptr<SimplePixelShader> customPS = std::make_shared<SimplePixelShader>(
 		Graphics::Device, Graphics::Context, FixPath(L"CustomPS.cso").c_str());
+	std::shared_ptr<SimplePixelShader> doubleTexPS = std::make_shared<SimplePixelShader>(
+		Graphics::Device, Graphics::Context, FixPath(L"TwoTexturePS.cso").c_str());
 
-	std::shared_ptr<Material> mat1 = std::make_shared<Material>(XMFLOAT4(1, 0, 0, 0),vs,ps);
-	std::shared_ptr<Material> mat2 = std::make_shared<Material>(XMFLOAT4(0, 1, 0, 0),vs,uvPS);
-	std::shared_ptr<Material> mat3 = std::make_shared<Material>(XMFLOAT4(0, 0, 1, 0),vs,normalPS);
-	std::shared_ptr<Material> mat4 = std::make_shared<Material>(XMFLOAT4(0, 0, 1, 0),vs,customPS);
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> graniteSRV;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> fabricSRV;
+	Microsoft::WRL::ComPtr<ID3D11SamplerState> samplerState;
+
+	CreateWICTextureFromFile(Graphics::Device.Get(),Graphics::Context.Get(),FixPath(L"../../Assets/granite_tile_diff_1k.png").c_str(), 0, graniteSRV.GetAddressOf());
+	CreateWICTextureFromFile(Graphics::Device.Get(),Graphics::Context.Get(),FixPath(L"../../Assets/fabric_pattern_07_col_1_1k.png").c_str(), 0, fabricSRV.GetAddressOf());
+
+	D3D11_SAMPLER_DESC sampleDesc = {};
+	sampleDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampleDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampleDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampleDesc.Filter = D3D11_FILTER_ANISOTROPIC;
+	sampleDesc.MaxAnisotropy = 10;
+	sampleDesc.MaxLOD = D3D11_FLOAT32_MAX;
+	HRESULT res = Graphics::Device->CreateSamplerState(&sampleDesc, &samplerState);
+
+	std::shared_ptr<Material> mat1 = std::make_shared<Material>(XMFLOAT4(0, 1, 0, 0),vs,ps,XMFLOAT2(1,1),XMFLOAT2(0,0));
+	mat1->AddSampler("BasicSampler", samplerState);
+	mat1->AddTextureSRV("SurfaceTexture",graniteSRV);
+	std::shared_ptr<Material> mat2 = std::make_shared<Material>(XMFLOAT4(1, 1, 1, 0),vs,ps,XMFLOAT2(1,1),XMFLOAT2(0,0));
+	mat2->AddSampler("BasicSampler", samplerState);
+	mat2->AddTextureSRV("SurfaceTexture", graniteSRV);
+	std::shared_ptr<Material> mat3 = std::make_shared<Material>(XMFLOAT4(0, 0, 1, 0),vs,ps,XMFLOAT2(1,1),XMFLOAT2(0,0));
+	mat3->AddSampler("BasicSampler", samplerState);
+	mat3->AddTextureSRV("SurfaceTexture", fabricSRV);
+	std::shared_ptr<Material> mat4 = std::make_shared<Material>(XMFLOAT4(1, 1, 1, 0),vs,ps,XMFLOAT2(1,1),XMFLOAT2(0,0));
+	mat4->AddSampler("BasicSampler", samplerState);
+	mat4->AddTextureSRV("SurfaceTexture", fabricSRV);
+	std::shared_ptr<Material> mat5 = std::make_shared<Material>(XMFLOAT4(1, 1, 1, 0),vs,ps,XMFLOAT2(5,5),XMFLOAT2(0,0));
+	mat5->AddSampler("BasicSampler", samplerState);
+	mat5->AddTextureSRV("SurfaceTexture", fabricSRV);
+	std::shared_ptr<Material> mat6 = std::make_shared<Material>(XMFLOAT4(1, 1, 1, 0),vs,doubleTexPS,XMFLOAT2(1,1),XMFLOAT2(0,0));
+	mat6->AddSampler("BasicSampler", samplerState);
+	mat6->AddTextureSRV("SurfaceTexture", fabricSRV);
+	mat6->AddTextureSRV("SecondTexture",graniteSRV);
 
 
 	std::shared_ptr<GameEntity> e1 = std::make_shared<GameEntity>(cube,mat1);
-	std::shared_ptr<GameEntity> e2 = std::make_shared<GameEntity>(cylinder,mat1);
-	std::shared_ptr<GameEntity> e3 = std::make_shared<GameEntity>(helix,mat2);
-	std::shared_ptr<GameEntity> e4 = std::make_shared<GameEntity>(quad,mat2);
-	std::shared_ptr<GameEntity> e5 = std::make_shared<GameEntity>(quad_2F,mat3);
-	std::shared_ptr<GameEntity> e6 = std::make_shared<GameEntity>(torus, mat3);
-	std::shared_ptr<GameEntity> e7 = std::make_shared<GameEntity>(cube, mat4);
-	std::shared_ptr<GameEntity> e8 = std::make_shared<GameEntity>(cylinder, mat4);
+	std::shared_ptr<GameEntity> e2 = std::make_shared<GameEntity>(cylinder,mat2);
+	std::shared_ptr<GameEntity> e3 = std::make_shared<GameEntity>(helix,mat3);
+	//std::shared_ptr<GameEntity> e4 = std::make_shared<GameEntity>(quad,mat2);
+	//std::shared_ptr<GameEntity> e5 = std::make_shared<GameEntity>(quad_2F,mat3);
+	std::shared_ptr<GameEntity> e6 = std::make_shared<GameEntity>(torus, mat4);
+	std::shared_ptr<GameEntity> e7 = std::make_shared<GameEntity>(cube, mat5);
+	std::shared_ptr<GameEntity> e8 = std::make_shared<GameEntity>(cylinder, mat6);
 
 
 	entities.push_back(e1);
 	entities.push_back(e2);
 	entities.push_back(e3);
-	entities.push_back(e4);
-	entities.push_back(e5);
+	//entities.push_back(e4);
+	//entities.push_back(e5);
 	entities.push_back(e6);
 	entities.push_back(e7);
 	entities.push_back(e8);
@@ -312,8 +347,8 @@ void Game::Draw(float deltaTime, float totalTime)
 		entities[3].get()->GetTransform()->SetPosition(-10, 0, 0);
 		entities[4].get()->GetTransform()->SetPosition(10, 0, 0);
 		entities[5].get()->GetTransform()->SetPosition(15, 0, 0);
-		entities[6].get()->GetTransform()->SetPosition(20, 0, 0);
-		entities[7].get()->GetTransform()->SetPosition(25, 0, 0);
+		//entities[6].get()->GetTransform()->SetPosition(20, 0, 0);
+		//entities[7].get()->GetTransform()->SetPosition(25, 0, 0);
 	}
 
 	ImGui::Render(); // Turns this frame’s UI into renderable triangles
@@ -412,6 +447,7 @@ void Game::BuildUI() {
 				XMFLOAT3 rot = eTransform->GetPitchYawRoll();
 				XMFLOAT3 scale = eTransform->GetScale();
 				
+				
 				if (ImGui::DragFloat3("Position", &pos.x,0.01f)) {
 					eTransform->SetPosition(pos);
 				}
@@ -422,6 +458,28 @@ void Game::BuildUI() {
 					eTransform->SetScale(scale);
 				}
 				ImGui::Text("Mesh Indices: %d", entities[i]->GetMesh()->GetIndexCount());
+				ImGui::PushID(i);
+				if (ImGui::TreeNode("","Entity %d material",i)) {
+					XMFLOAT2 uvScale = entities[i]->GetMaterial()->GetUVScale();
+					XMFLOAT2 uvOffset = entities[i]->GetMaterial()->GetUVOffset();
+					XMFLOAT4 colorTint = entities[i]->GetMaterial()->GetColorTint();
+					std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>> textureMap = entities[i]->GetMaterial()->GetTextureMap();
+
+					if (ImGui::DragFloat2("UV Scale",&uvScale.x,0.01f)) {
+						entities[i]->GetMaterial()->SetUVScale(uvScale);
+					}
+					if (ImGui::DragFloat2("UV Offset", &uvOffset.x, 0.01f)) {
+						entities[i]->GetMaterial()->SetUVOffset(uvOffset);
+					}
+					if (ImGui::DragFloat4("Color Tint", &colorTint.x, 0.01f)) {
+						entities[i]->GetMaterial()->SetColorTint(colorTint);
+					}
+					for (auto& t : textureMap) {
+						ImGui::Image((ImTextureID)t.second.Get(),ImVec2(125,125));
+					}
+					ImGui::TreePop();
+				}
+				ImGui::PopID();
 				ImGui::TreePop();
 			}
 			ImGui::PopID();

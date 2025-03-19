@@ -42,7 +42,11 @@ void GameEntity::Draw(std::shared_ptr<Camera> cam)
 	material->GetVertexShader()->CopyAllBufferData();
 
 	material->GetPixelShader()->SetFloat4("colorTint", material->GetColorTint());
+	material->GetPixelShader()->SetFloat2("uvScale", material->GetUVScale());
+	material->GetPixelShader()->SetFloat2("uvOffset", material->GetUVOffset());
 	material->GetPixelShader()->CopyAllBufferData();
+
+	material->PrepareMaterial();
 
 	mesh->Draw();
 }
