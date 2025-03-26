@@ -87,7 +87,7 @@ DirectX::XMFLOAT4X4 Transform::GetWorldMatrix()
 
 DirectX::XMFLOAT4X4 Transform::GetWorldInverseTransposeMatrix()
 {
-	return DirectX::XMFLOAT4X4();
+	return worldInverseTransposeMatrix;
 }
 
 DirectX::XMFLOAT3 Transform::GetRight()

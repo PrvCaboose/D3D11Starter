@@ -1,11 +1,12 @@
 #include "Material.h"
 
-Material::Material(DirectX::XMFLOAT4 colorTint, std::shared_ptr<SimpleVertexShader> simpleVertexShader, std::shared_ptr<SimplePixelShader> simplePixelShader, DirectX::XMFLOAT2 uvScale, DirectX::XMFLOAT2 uvOfsett) :
+Material::Material(DirectX::XMFLOAT4 colorTint, std::shared_ptr<SimpleVertexShader> simpleVertexShader, std::shared_ptr<SimplePixelShader> simplePixelShader, DirectX::XMFLOAT2 uvScale, DirectX::XMFLOAT2 uvOfsett,float roughness) :
     colorTint(colorTint),
     simpleVertexShader(simpleVertexShader),
     simplePixelShader(simplePixelShader),
     uvScale(uvScale),
-    uvOffset(uvOfsett)
+    uvOffset(uvOfsett),
+    roughness(roughness)
 {
 }
 
@@ -55,6 +56,11 @@ std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>
     return textureSRVs;
 }
 
+float Material::GetRoughness()
+{
+    return roughness;
+}
+
 void Material::SetColorTint(DirectX::XMFLOAT4 colorTint)
 {
     this->colorTint = colorTint;
@@ -78,4 +84,9 @@ void Material::SetUVScale(DirectX::XMFLOAT2 scale)
 void Material::SetUVOffset(DirectX::XMFLOAT2 offset)
 {
     uvOffset = offset;
+}
+
+void Material::SetRoughness(float roughness)
+{
+    this->roughness = roughness;
 }

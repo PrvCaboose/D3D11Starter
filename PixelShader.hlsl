@@ -1,25 +1,21 @@
+#include "ShaderInclude.hlsli"
+#define NUM_LIGHTS 5
+
 cbuffer ExternalData : register(b0)
 {
     float4 colorTint;
+    
     float2 uvScale;
     float2 uvOffset;
+    
+    float3 cameraPosition;
+    float roughness;
+    
+    float3 ambient;
+    float padding;
+    
+    Light lights[NUM_LIGHTS];
 }
-// Struct representing the data we expect to receive from earlier pipeline stages
-// - Should match the output of our corresponding vertex shader
-// - The name of the struct itself is unimportant
-// - The variable names don't have to match other shaders (just the semantics)
-// - Each variable must have a semantic, which defines its usage
-struct VertexToPixel
-{
-	// Data type
-	//  |
-	//  |   Name          Semantic
-	//  |    |                |
-	//  v    v                v
-	float4 screenPosition	: SV_POSITION;
-    float2 UV				: TEXCOORD;
-    float3 Normal			: NORMAL;
-};
 
 Texture2D SurfaceTexture : register(t0); // "t" registers for textures
 SamplerState BasicSampler : register(s0); // "s" registers for samplers
@@ -39,9 +35,31 @@ float4 main(VertexToPixel input) : SV_TARGET
 	// - This color (like most values passing through the rasterizer) is 
 	//   interpolated for each pixel between the corresponding vertices 
 	//   of the triangle we're rendering
-	
+    input.Normal = normalize(input.Normal);
     input.UV = input.UV * uvScale + uvOffset;
-    float4 surfaceColor = SurfaceTexture.Sample(BasicSampler, input.UV);
+    float3 totalLight = float3(0, 0, 0) + ambient;
+    for (int i = 0; i < NUM_LIGHTS;i++)
+    {
+        // Normalize the light direction
+        Light currentLight = lights[i];
+        currentLight.Direction = normalize(currentLight.Direction);
+        // Get surface color
+        float4 surfaceColor = SurfaceTexture.Sample(BasicSampler, input.UV);
+        // switch case for each type of light
+        switch (currentLight.Type)
+        {
+            case LIGHT_DIRECTIONAL_TYPE:
+                // Increment total light for each light
+                totalLight += DirLight(currentLight, input.worldPosition, input.Normal, float3(surfaceColor.rgb), roughness, cameraPosition);
+                break;
+            case LIGHT_TYPE_POINT:
+                totalLight += PointLight(currentLight, input.worldPosition, input.Normal, float3(surfaceColor.rgb), roughness, cameraPosition);
+                break;
+            case LIGHT_TYPE_SPOT:
+                totalLight += SpotLight(currentLight, input.worldPosition, input.Normal, float3(surfaceColor.rgb), roughness, cameraPosition);
+                break;
+        }
+    }
     
-    return colorTint*surfaceColor;
+    return float4(totalLight.rgb, 1);
 }

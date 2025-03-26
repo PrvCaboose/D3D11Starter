@@ -38,12 +38,15 @@ void GameEntity::Draw(std::shared_ptr<Camera> cam)
 	material->GetVertexShader()->SetMatrix4x4("worldMatrix", transform->GetWorldMatrix());
 	material->GetVertexShader()->SetMatrix4x4("viewMatrix", cam->GetView());
 	material->GetVertexShader()->SetMatrix4x4("projMatrix", cam->GetProj());
+	material->GetVertexShader()->SetMatrix4x4("worldInvMatrix", transform->GetWorldInverseTransposeMatrix());
 
 	material->GetVertexShader()->CopyAllBufferData();
 
 	material->GetPixelShader()->SetFloat4("colorTint", material->GetColorTint());
 	material->GetPixelShader()->SetFloat2("uvScale", material->GetUVScale());
 	material->GetPixelShader()->SetFloat2("uvOffset", material->GetUVOffset());
+	material->GetPixelShader()->SetFloat3("cameraPosition", cam->GetPosition());
+	material->GetPixelShader()->SetFloat("roughness", material->GetRoughness());
 	material->GetPixelShader()->CopyAllBufferData();
 
 	material->PrepareMaterial();

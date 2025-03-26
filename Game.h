@@ -7,6 +7,7 @@
 #include <vector>
 #include "GameEntity.h"
 #include "Camera.h"
+#include "Lights.h"
 
 class Game
 {
@@ -26,7 +27,6 @@ public:
 private:
 
 	// Initialization helper methods - feel free to customize, combine, remove, etc.
-	void LoadShaders();
 	void CreateGeometry();
 	void ResetUI(float deltaTime);
 	void BuildUI();
@@ -42,6 +42,12 @@ private:
 	
 
 	// Shaders and shader-related constructs
+	Light directionalLight;
+	Light dirLight2;
+	Light dirLight3;
+	Light spotLight;
+	Light pointLight;
+	std::vector<Light> lights;
 
 	// Mesh objects
 	std::shared_ptr<Mesh> cube;

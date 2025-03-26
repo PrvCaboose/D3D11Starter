@@ -32,7 +32,7 @@ namespace {
 	XMFLOAT4 colorTint = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 	int currentCamIndex = 0;
 	std::string windowName = "Debug Inspector";
-
+	XMFLOAT3 ambientColor = XMFLOAT3(0.2f, 0.2f, 0.2f);
 }
 
 // --------------------------------------------------------
@@ -48,33 +48,50 @@ void Game::Initialize()
 	CreateGeometry();
 
 	// Set initial graphics API state
-	//  - These settings persist until we change them
-	//  - Some of these, like the primitive topology & input layout, probably won't change
-	//  - Others, like setting shaders, will need to be moved elsewhere later
-	{
-		// Tell the input assembler (IA) stage of the pipeline what kind of
-		// geometric primitives (points, lines or triangles) we want to draw.  
-		// Essentially: "What kind of shape should the GPU draw with our vertices?"
-		Graphics::Context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	Graphics::Context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-		// Ensure the pipeline knows how to interpret all the numbers stored in
-		// the vertex buffer. For this course, all of your vertices will probably
-		// have the same layout, so we can just set this once at startup.
-		
-		//Graphics::Context->IASetInputLayout(inputLayout.Get());
+	directionalLight = {};
+	directionalLight.Type = LIGHT_DIRECTIONAL_TYPE;
+	directionalLight.Direction = XMFLOAT3(1.0f, 0.0f, 0.0f);
+	directionalLight.Color = XMFLOAT3(0.0f, 1.0f, 0.0f);
+	directionalLight.Intensity = 1.0f;
 
-		// Set the active vertex and pixel shaders
-		//  - Once you start applying different shaders to different objects,
-		//    these calls will need to happen multiple times per frame
+	dirLight2 = {};
+	dirLight2.Type = LIGHT_DIRECTIONAL_TYPE;
+	dirLight2.Direction = XMFLOAT3(0.0f, -1.0f, 0.0f);
+	dirLight2.Color = XMFLOAT3(1.0f, 1.0f, 0.0f);
+	dirLight2.Intensity = 1.0f;
 
+	dirLight3 = {};
+	dirLight3.Type = LIGHT_DIRECTIONAL_TYPE;
+	dirLight3.Direction = XMFLOAT3(-1.0f, 0.0f, 0.0f);
+	dirLight3.Color = XMFLOAT3(0.0f, 1.0f, 1.0f);
+	dirLight3.Intensity = 1.0f;
 
-		/*Graphics::Context->VSSetShader(vertexShader.Get(), 0, 0);
-		Graphics::Context->PSSetShader(pixelShader.Get(), 0, 0);*/
-		
+	spotLight = {};
+	spotLight.Type = LIGHT_TYPE_SPOT;
+	spotLight.Position = XMFLOAT3(10.0f, 1.5f, 0.0f);
+	spotLight.Direction = XMFLOAT3(0.0f, -1.0f, 0.0f);
+	spotLight.Color = XMFLOAT3(1.0f, 0.0f, 0.0f);
+	spotLight.Intensity = 1.0f;
+	spotLight.SpotInnerAngle = XMConvertToRadians(20.0f);
+	spotLight.SpotOuterAngle = XMConvertToRadians(40.0f);
+	spotLight.Range = 15.0f;
 
-		//Graphics::Device->CreateBuffer(&cbDesc, 0, cBuffer.GetAddressOf());
-		//Graphics::Context->VSSetConstantBuffers(0,1,cBuffer.GetAddressOf()); 
-	}
+	pointLight = {};
+	pointLight.Type = LIGHT_TYPE_POINT;
+	pointLight.Position = XMFLOAT3(0.0f, 0.0f, -2.0f);
+	pointLight.Color = XMFLOAT3(1.0f, 1.0f, 1.0f);
+	pointLight.Intensity = 1.0f;
+	pointLight.Range = 10.0f;
+
+	
+
+	lights.push_back(directionalLight);
+	lights.push_back(dirLight2);
+	lights.push_back(dirLight3);
+	lights.push_back(spotLight);
+	lights.push_back(pointLight);
 
 	// Initialize ImGui itself & platform/renderer backends
 	IMGUI_CHECKVERSION();
@@ -120,77 +137,6 @@ Game::~Game()
 	ImGui_ImplWin32_Shutdown();
 	ImGui::DestroyContext();
 }
-
-
-// --------------------------------------------------------
-// Loads shaders from compiled shader object (.cso) files
-// and also created the Input Layout that describes our 
-// vertex data to the rendering pipeline. 
-// - Input Layout creation is done here because it must 
-//    be verified against vertex shader byte code
-// - We'll have that byte code already loaded below
-// --------------------------------------------------------
-//void Game::LoadShaders()
-//{
-//	// BLOBs (or Binary Large OBjects) for reading raw data from external files
-//	// - This is a simplified way of handling big chunks of external data
-//	// - Literally just a big array of bytes read from a file
-//	ID3DBlob* pixelShaderBlob;
-//	ID3DBlob* vertexShaderBlob;
-//
-//	// Loading shaders
-//	//  - Visual Studio will compile our shaders at build time
-//	//  - They are saved as .cso (Compiled Shader Object) files
-//	//  - We need to load them when the application starts
-//	{
-//		// Read our compiled shader code files into blobs
-//		// - Essentially just "open the file and plop its contents here"
-//		// - Uses the custom FixPath() helper from Helpers.h to ensure relative paths
-//		// - Note the "L" before the string - this tells the compiler the string uses wide characters
-//		D3DReadFileToBlob(FixPath(L"PixelShader.cso").c_str(), &pixelShaderBlob);
-//		D3DReadFileToBlob(FixPath(L"VertexShader.cso").c_str(), &vertexShaderBlob);
-//
-//		// Create the actual Direct3D shaders on the GPU
-//		Graphics::Device->CreatePixelShader(
-//			pixelShaderBlob->GetBufferPointer(),	// Pointer to blob's contents
-//			pixelShaderBlob->GetBufferSize(),		// How big is that data?
-//			0,										// No classes in this shader
-//			);			// Address of the ID3D11PixelShader pointer
-//
-//		Graphics::Device->CreateVertexShader(
-//			vertexShaderBlob->GetBufferPointer(),	// Get a pointer to the blob's contents
-//			vertexShaderBlob->GetBufferSize(),		// How big is that data?
-//			0,										// No classes in this shader
-//			);			// The address of the ID3D11VertexShader pointer
-//	}
-//
-//	// Create an input layout 
-//	//  - This describes the layout of data sent to a vertex shader
-//	//  - In other words, it describes how to interpret data (numbers) in a vertex buffer
-//	//  - Doing this NOW because it requires a vertex shader's byte code to verify against!
-//	//  - Luckily, we already have that loaded (the vertex shader blob above)
-//	{
-//		D3D11_INPUT_ELEMENT_DESC inputElements[2] = {};
-//
-//		// Set up the first element - a position, which is 3 float values
-//		inputElements[0].Format = DXGI_FORMAT_R32G32B32_FLOAT;				// Most formats are described as color channels; really it just means "Three 32-bit floats"
-//		inputElements[0].SemanticName = "POSITION";							// This is "POSITION" - needs to match the semantics in our vertex shader input!
-//		inputElements[0].AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT;	// How far into the vertex is this?  Assume it's after the previous element
-//
-//		// Set up the second element - a color, which is 4 more float values
-//		inputElements[1].Format = DXGI_FORMAT_R32G32B32A32_FLOAT;			// 4x 32-bit floats
-//		inputElements[1].SemanticName = "COLOR";							// Match our vertex shader input!
-//		inputElements[1].AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT;	// After the previous element
-//
-//		// Create the input layout, verifying our description against actual shader code
-//		Graphics::Device->CreateInputLayout(
-//			inputElements,							// An array of descriptions
-//			2,										// How many elements in that array?
-//			vertexShaderBlob->GetBufferPointer(),	// Pointer to the code of a shader that uses this layout
-//			vertexShaderBlob->GetBufferSize(),		// Size of the shader code that uses this layout
-//			);			// Address of the resulting ID3D11InputLayout pointer
-//	}
-//}
 
 
 // --------------------------------------------------------
@@ -246,22 +192,22 @@ void Game::CreateGeometry()
 	sampleDesc.MaxLOD = D3D11_FLOAT32_MAX;
 	HRESULT res = Graphics::Device->CreateSamplerState(&sampleDesc, &samplerState);
 
-	std::shared_ptr<Material> mat1 = std::make_shared<Material>(XMFLOAT4(0, 1, 0, 0),vs,ps,XMFLOAT2(1,1),XMFLOAT2(0,0));
+	std::shared_ptr<Material> mat1 = std::make_shared<Material>(XMFLOAT4(0, 1, 0, 0),vs,ps,XMFLOAT2(1,1),XMFLOAT2(0,0),0.0f);
 	mat1->AddSampler("BasicSampler", samplerState);
 	mat1->AddTextureSRV("SurfaceTexture",graniteSRV);
-	std::shared_ptr<Material> mat2 = std::make_shared<Material>(XMFLOAT4(1, 1, 1, 0),vs,ps,XMFLOAT2(1,1),XMFLOAT2(0,0));
+	std::shared_ptr<Material> mat2 = std::make_shared<Material>(XMFLOAT4(1, 1, 1, 0),vs,ps,XMFLOAT2(1,1),XMFLOAT2(0,0),-0.2f);
 	mat2->AddSampler("BasicSampler", samplerState);
 	mat2->AddTextureSRV("SurfaceTexture", graniteSRV);
-	std::shared_ptr<Material> mat3 = std::make_shared<Material>(XMFLOAT4(0, 0, 1, 0),vs,ps,XMFLOAT2(1,1),XMFLOAT2(0,0));
+	std::shared_ptr<Material> mat3 = std::make_shared<Material>(XMFLOAT4(0, 0, 1, 0),vs,ps,XMFLOAT2(1,1),XMFLOAT2(0,0),-0.4f);
 	mat3->AddSampler("BasicSampler", samplerState);
 	mat3->AddTextureSRV("SurfaceTexture", fabricSRV);
-	std::shared_ptr<Material> mat4 = std::make_shared<Material>(XMFLOAT4(1, 1, 1, 0),vs,ps,XMFLOAT2(1,1),XMFLOAT2(0,0));
+	std::shared_ptr<Material> mat4 = std::make_shared<Material>(XMFLOAT4(1, 1, 1, 0),vs,ps,XMFLOAT2(1,1),XMFLOAT2(0,0),-0.6f);
 	mat4->AddSampler("BasicSampler", samplerState);
 	mat4->AddTextureSRV("SurfaceTexture", fabricSRV);
-	std::shared_ptr<Material> mat5 = std::make_shared<Material>(XMFLOAT4(1, 1, 1, 0),vs,ps,XMFLOAT2(5,5),XMFLOAT2(0,0));
+	std::shared_ptr<Material> mat5 = std::make_shared<Material>(XMFLOAT4(1, 1, 1, 0),vs,ps,XMFLOAT2(5,5),XMFLOAT2(0,0),-0.8f);
 	mat5->AddSampler("BasicSampler", samplerState);
 	mat5->AddTextureSRV("SurfaceTexture", fabricSRV);
-	std::shared_ptr<Material> mat6 = std::make_shared<Material>(XMFLOAT4(1, 1, 1, 0),vs,doubleTexPS,XMFLOAT2(1,1),XMFLOAT2(0,0));
+	std::shared_ptr<Material> mat6 = std::make_shared<Material>(XMFLOAT4(1, 1, 1, 0),vs,doubleTexPS,XMFLOAT2(1,1),XMFLOAT2(0,0),-1.0f);
 	mat6->AddSampler("BasicSampler", samplerState);
 	mat6->AddTextureSRV("SurfaceTexture", fabricSRV);
 	mat6->AddTextureSRV("SecondTexture",graniteSRV);
@@ -274,7 +220,7 @@ void Game::CreateGeometry()
 	//std::shared_ptr<GameEntity> e5 = std::make_shared<GameEntity>(quad_2F,mat3);
 	std::shared_ptr<GameEntity> e6 = std::make_shared<GameEntity>(torus, mat4);
 	std::shared_ptr<GameEntity> e7 = std::make_shared<GameEntity>(cube, mat5);
-	std::shared_ptr<GameEntity> e8 = std::make_shared<GameEntity>(cylinder, mat6);
+	std::shared_ptr<GameEntity> e8 = std::make_shared<GameEntity>(cylinder, mat5);
 
 
 	entities.push_back(e1);
@@ -338,6 +284,8 @@ void Game::Draw(float deltaTime, float totalTime)
 	{
 		for (int i=0;i<entities.size(); i++) {
 			entities[i]->Draw(cameras[currentCamIndex]);
+			entities[i]->GetMaterial()->GetPixelShader()->SetFloat3("ambient", ambientColor);
+			entities[i]->GetMaterial()->GetPixelShader()->SetData("lights", &lights[0], sizeof(Light) * (int)lights.size());
 		}
 		float sinWave = (float)sin(totalTime);
 		// Move entities
@@ -498,6 +446,20 @@ void Game::BuildUI() {
 			}
 			ImGui::PopID();
 		}
+		ImGui::TreePop();
+	}
+	if (ImGui::TreeNode("Lights")) {
+		for (int i = 0; i < lights.size(); i++)
+		{
+			ImGui::PushID(i);
+			if (ImGui::TreeNode("", "Light %d",i))
+			{
+				ImGui::DragFloat3("color", & lights[i].Color.x, 0.01f, 0.0f, 1.0f);
+				ImGui::TreePop();
+			}
+			ImGui::PopID();
+		}
+		ImGui::DragFloat3("Ambient color", &ambientColor.x,0.01f,0.0f,1.0f);
 		ImGui::TreePop();
 	}
 	ImGui::End();
