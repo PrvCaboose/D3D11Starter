@@ -34,5 +34,6 @@ class Mesh
 		void CreateBuffers(Vertex vertices[], unsigned int indices[], int numVertices, int numIndices);
 		void Draw();
 		~Mesh();
+		void CalculateTangents(Vertex* verts, int numVerts, unsigned int* indices, int numIndices);
 };
 

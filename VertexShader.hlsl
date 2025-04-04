@@ -37,7 +37,8 @@ VertexToPixel main( VertexShaderInput input )
 	// - The values will be interpolated per-pixel by the rasterizer
 	// - We don't need to alter it here, but we do need to send it to the pixel shader
     output.UV = input.UV;
-    output.Normal = mul((float3x3)worldInvMatrix, input.Normal);
+    output.Normal = normalize(mul((float3x3) worldInvMatrix, input.Normal));
+    output.Tangent = normalize(mul((float3x3) worldMatrix, input.Tangent)); 
     output.worldPosition = mul(worldMatrix, float4(input.Position, 1)).xyz;
 
 	// Whatever we return will make its way through the pipeline to the

@@ -163,6 +163,9 @@ void Game::CreateGeometry()
 	torus = std::make_shared<Mesh>(FixPath("../../Assets/torus.obj").c_str());
 	meshes.push_back(torus);
 
+	sphere = std::make_shared<Mesh>(FixPath("../../Assets/sphere.obj").c_str());
+	meshes.push_back(sphere);
+
 	std::shared_ptr<SimpleVertexShader> vs = std::make_shared<SimpleVertexShader>(
 		Graphics::Device, Graphics::Context, FixPath(L"VertexShader.cso").c_str());
 	std::shared_ptr<SimplePixelShader> ps = std::make_shared<SimplePixelShader>(
@@ -176,12 +179,41 @@ void Game::CreateGeometry()
 	std::shared_ptr<SimplePixelShader> doubleTexPS = std::make_shared<SimplePixelShader>(
 		Graphics::Device, Graphics::Context, FixPath(L"TwoTexturePS.cso").c_str());
 
-	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> graniteSRV;
+	// Sky related shaders
+	std::shared_ptr<SimpleVertexShader> skyVS = std::make_shared<SimpleVertexShader>(
+		Graphics::Device, Graphics::Context, FixPath(L"SkyVertexShader.cso").c_str());
+	std::shared_ptr<SimplePixelShader> skyPS = std::make_shared<SimplePixelShader>(
+		Graphics::Device, Graphics::Context, FixPath(L"SkyPixelShader.cso").c_str());
+
+	//Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> graniteSRV;
 	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> fabricSRV;
+
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> cobbleSRV;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> cobbleNormalSRV;
+
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> rockSRV;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> rockNormalSRV;
+
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> cushionSRV;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> cushionNormalSRV;
+
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> flatNormalSRV;
+
 	Microsoft::WRL::ComPtr<ID3D11SamplerState> samplerState;
 
-	CreateWICTextureFromFile(Graphics::Device.Get(),Graphics::Context.Get(),FixPath(L"../../Assets/granite_tile_diff_1k.png").c_str(), 0, graniteSRV.GetAddressOf());
+	//CreateWICTextureFromFile(Graphics::Device.Get(),Graphics::Context.Get(),FixPath(L"../../Assets/granite_tile_diff_1k.png").c_str(), 0, graniteSRV.GetAddressOf());
 	CreateWICTextureFromFile(Graphics::Device.Get(),Graphics::Context.Get(),FixPath(L"../../Assets/fabric_pattern_07_col_1_1k.png").c_str(), 0, fabricSRV.GetAddressOf());
+
+	CreateWICTextureFromFile(Graphics::Device.Get(), Graphics::Context.Get(), FixPath(L"../../Assets/cobblestone.png").c_str(), 0, cobbleSRV.GetAddressOf());
+	CreateWICTextureFromFile(Graphics::Device.Get(), Graphics::Context.Get(), FixPath(L"../../Assets/cobblestone_normals.png").c_str(), 0, cobbleNormalSRV.GetAddressOf());
+
+	CreateWICTextureFromFile(Graphics::Device.Get(), Graphics::Context.Get(), FixPath(L"../../Assets/cushion.png").c_str(), 0, cushionSRV.GetAddressOf());
+	CreateWICTextureFromFile(Graphics::Device.Get(), Graphics::Context.Get(), FixPath(L"../../Assets/cushion_normals.png").c_str(), 0, cushionNormalSRV.GetAddressOf());
+
+	CreateWICTextureFromFile(Graphics::Device.Get(), Graphics::Context.Get(), FixPath(L"../../Assets/rock.png").c_str(), 0, rockSRV.GetAddressOf());
+	CreateWICTextureFromFile(Graphics::Device.Get(), Graphics::Context.Get(), FixPath(L"../../Assets/rock_normals.png").c_str(), 0, rockNormalSRV.GetAddressOf());
+
+	CreateWICTextureFromFile(Graphics::Device.Get(), Graphics::Context.Get(), FixPath(L"../../Assets/flat_normals.png").c_str(), 0, flatNormalSRV.GetAddressOf());
 
 	D3D11_SAMPLER_DESC sampleDesc = {};
 	sampleDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
@@ -192,34 +224,39 @@ void Game::CreateGeometry()
 	sampleDesc.MaxLOD = D3D11_FLOAT32_MAX;
 	HRESULT res = Graphics::Device->CreateSamplerState(&sampleDesc, &samplerState);
 
-	std::shared_ptr<Material> mat1 = std::make_shared<Material>(XMFLOAT4(0, 1, 0, 0),vs,ps,XMFLOAT2(1,1),XMFLOAT2(0,0),0.0f);
+	std::shared_ptr<Material> mat1 = std::make_shared<Material>(XMFLOAT4(0.936f, 0.702f, 0.799f, 1.000f),vs,ps,XMFLOAT2(1,1),XMFLOAT2(0,0),0.0f);
 	mat1->AddSampler("BasicSampler", samplerState);
-	mat1->AddTextureSRV("SurfaceTexture",graniteSRV);
-	std::shared_ptr<Material> mat2 = std::make_shared<Material>(XMFLOAT4(1, 1, 1, 0),vs,ps,XMFLOAT2(1,1),XMFLOAT2(0,0),-0.2f);
+	mat1->AddTextureSRV("SurfaceTexture",rockSRV);
+	mat1->AddTextureSRV("NormalMap", rockNormalSRV);
+	std::shared_ptr<Material> mat2 = std::make_shared<Material>(XMFLOAT4(0.936f, 0.702f, 0.799f, 1.000f),vs,ps,XMFLOAT2(1,1),XMFLOAT2(0,0),-0.2f);
 	mat2->AddSampler("BasicSampler", samplerState);
-	mat2->AddTextureSRV("SurfaceTexture", graniteSRV);
-	std::shared_ptr<Material> mat3 = std::make_shared<Material>(XMFLOAT4(0, 0, 1, 0),vs,ps,XMFLOAT2(1,1),XMFLOAT2(0,0),-0.4f);
+	mat2->AddTextureSRV("SurfaceTexture", cushionSRV);
+	mat2->AddTextureSRV("NormalMap", cushionNormalSRV);
+	std::shared_ptr<Material> mat3 = std::make_shared<Material>(XMFLOAT4(0.936f, 0.702f, 0.799f, 1.000f),vs,ps,XMFLOAT2(1,1),XMFLOAT2(0,0),-0.4f);
 	mat3->AddSampler("BasicSampler", samplerState);
 	mat3->AddTextureSRV("SurfaceTexture", fabricSRV);
-	std::shared_ptr<Material> mat4 = std::make_shared<Material>(XMFLOAT4(1, 1, 1, 0),vs,ps,XMFLOAT2(1,1),XMFLOAT2(0,0),-0.6f);
+	mat3->AddTextureSRV("NormalMap", flatNormalSRV);
+	std::shared_ptr<Material> mat4 = std::make_shared<Material>(XMFLOAT4(0.936f, 0.702f, 0.799f, 1.000f),vs,ps,XMFLOAT2(1,1),XMFLOAT2(0,0),-0.6f);
 	mat4->AddSampler("BasicSampler", samplerState);
-	mat4->AddTextureSRV("SurfaceTexture", fabricSRV);
-	std::shared_ptr<Material> mat5 = std::make_shared<Material>(XMFLOAT4(1, 1, 1, 0),vs,ps,XMFLOAT2(5,5),XMFLOAT2(0,0),-0.8f);
+	mat4->AddTextureSRV("SurfaceTexture", cobbleSRV);
+	mat4->AddTextureSRV("NormalMap", cobbleNormalSRV);
+	std::shared_ptr<Material> mat5 = std::make_shared<Material>(XMFLOAT4(0.936f, 0.702f, 0.799f, 1.000f),vs,ps,XMFLOAT2(5,5),XMFLOAT2(0,0),-0.8f);
 	mat5->AddSampler("BasicSampler", samplerState);
-	mat5->AddTextureSRV("SurfaceTexture", fabricSRV);
-	std::shared_ptr<Material> mat6 = std::make_shared<Material>(XMFLOAT4(1, 1, 1, 0),vs,doubleTexPS,XMFLOAT2(1,1),XMFLOAT2(0,0),-1.0f);
-	mat6->AddSampler("BasicSampler", samplerState);
-	mat6->AddTextureSRV("SurfaceTexture", fabricSRV);
-	mat6->AddTextureSRV("SecondTexture",graniteSRV);
+	mat5->AddTextureSRV("SurfaceTexture", cushionSRV);
+	mat5->AddTextureSRV("NormalMap", cushionNormalSRV);
+	//std::shared_ptr<Material> mat6 = std::make_shared<Material>(XMFLOAT4(1, 1, 1, 0),vs,doubleTexPS,XMFLOAT2(1,1),XMFLOAT2(0,0),-1.0f);
+	//mat6->AddSampler("BasicSampler", samplerState);
+	//mat6->AddTextureSRV("SurfaceTexture", fabricSRV);
+	//mat6->AddTextureSRV("SecondTexture",graniteSRV);
 
 
 	std::shared_ptr<GameEntity> e1 = std::make_shared<GameEntity>(cube,mat1);
-	std::shared_ptr<GameEntity> e2 = std::make_shared<GameEntity>(cylinder,mat2);
+	std::shared_ptr<GameEntity> e2 = std::make_shared<GameEntity>(sphere,mat2);
 	std::shared_ptr<GameEntity> e3 = std::make_shared<GameEntity>(helix,mat3);
 	//std::shared_ptr<GameEntity> e4 = std::make_shared<GameEntity>(quad,mat2);
 	//std::shared_ptr<GameEntity> e5 = std::make_shared<GameEntity>(quad_2F,mat3);
 	std::shared_ptr<GameEntity> e6 = std::make_shared<GameEntity>(torus, mat4);
-	std::shared_ptr<GameEntity> e7 = std::make_shared<GameEntity>(cube, mat5);
+	std::shared_ptr<GameEntity> e7 = std::make_shared<GameEntity>(sphere, mat5);
 	std::shared_ptr<GameEntity> e8 = std::make_shared<GameEntity>(cylinder, mat5);
 
 
@@ -231,6 +268,19 @@ void Game::CreateGeometry()
 	entities.push_back(e6);
 	entities.push_back(e7);
 	entities.push_back(e8);
+
+
+	sky = std::make_shared<Sky>(
+		FixPath(L"../../Assets/right.png").c_str(),
+		FixPath(L"../../Assets/left.png").c_str(),
+		FixPath(L"../../Assets/up.png").c_str(),
+		FixPath(L"../../Assets/down.png").c_str(),
+		FixPath(L"../../Assets/front.png").c_str(),
+		FixPath(L"../../Assets/back.png").c_str(),
+		cube,
+		samplerState,
+		skyPS,
+		skyVS);
 }
 
 
@@ -297,6 +347,8 @@ void Game::Draw(float deltaTime, float totalTime)
 		entities[5].get()->GetTransform()->SetPosition(15, 0, 0);
 		//entities[6].get()->GetTransform()->SetPosition(20, 0, 0);
 		//entities[7].get()->GetTransform()->SetPosition(25, 0, 0);
+
+		sky->Draw(cameras[currentCamIndex]);
 	}
 
 	ImGui::Render(); // Turns this frame’s UI into renderable triangles

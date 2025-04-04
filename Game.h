@@ -8,6 +8,7 @@
 #include "GameEntity.h"
 #include "Camera.h"
 #include "Lights.h"
+#include "Sky.h"
 
 class Game
 {
@@ -48,6 +49,7 @@ private:
 	Light spotLight;
 	Light pointLight;
 	std::vector<Light> lights;
+	std::shared_ptr<Sky> sky;
 
 	// Mesh objects
 	std::shared_ptr<Mesh> cube;

@@ -18,6 +18,7 @@ cbuffer ExternalData : register(b0)
 }
 
 Texture2D SurfaceTexture : register(t0); // "t" registers for textures
+Texture2D NormalMap : register(t1);
 SamplerState BasicSampler : register(s0); // "s" registers for samplers
 
 // --------------------------------------------------------
@@ -35,9 +36,18 @@ float4 main(VertexToPixel input) : SV_TARGET
 	// - This color (like most values passing through the rasterizer) is 
 	//   interpolated for each pixel between the corresponding vertices 
 	//   of the triangle we're rendering
+    
+    float3 unpackedNormal = NormalMap.Sample(BasicSampler, input.UV).rgb * 2 - 1;
+    float3 tangent = normalize(input.Tangent);
     input.Normal = normalize(input.Normal);
     input.UV = input.UV * uvScale + uvOffset;
-    float3 totalLight = float3(0, 0, 0) + ambient;
+    
+    tangent = normalize(tangent - input.Normal * dot(tangent, input.Normal));
+    float3 bi_tangent = cross(tangent, input.Normal);
+    float3x3 tbn = float3x3(tangent, bi_tangent, input.Normal);
+    input.Normal = normalize(mul(unpackedNormal, tbn));
+    
+    float3 totalLight = float3(0, 0, 0) + (colorTint.rgb / 3);
     for (int i = 0; i < NUM_LIGHTS;i++)
     {
         // Normalize the light direction
