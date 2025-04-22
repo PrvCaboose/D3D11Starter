@@ -51,6 +51,16 @@ private:
 	std::vector<Light> lights;
 	std::shared_ptr<Sky> sky;
 
+	// Shadows
+	Microsoft::WRL::ComPtr<ID3D11DepthStencilView> shadowDSV;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> shadowSRV;
+	DirectX::XMFLOAT4X4 lightViewMatrix;
+	DirectX::XMFLOAT4X4 lightProjectionMatrix;
+	std::shared_ptr<SimpleVertexShader> shadowVS;
+	// Shadow Rasterizer object
+	Microsoft::WRL::ComPtr<ID3D11RasterizerState> shadowRasterizer;
+	Microsoft::WRL::ComPtr<ID3D11SamplerState> shadowSampler;
+
 	// Mesh objects
 	std::shared_ptr<Mesh> cube;
 	std::shared_ptr<Mesh> cylinder;

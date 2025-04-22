@@ -52,7 +52,7 @@ void Game::Initialize()
 
 	directionalLight = {};
 	directionalLight.Type = LIGHT_DIRECTIONAL_TYPE;
-	directionalLight.Direction = XMFLOAT3(1.0f, 0.0f, 0.0f);
+	directionalLight.Direction = XMFLOAT3(0.0f, -1.0f, 1.0f);
 	directionalLight.Color = XMFLOAT3(0.0f, 1.0f, 0.0f);
 	directionalLight.Intensity = 1.0f;
 
@@ -185,6 +185,10 @@ void Game::CreateGeometry()
 	std::shared_ptr<SimplePixelShader> skyPS = std::make_shared<SimplePixelShader>(
 		Graphics::Device, Graphics::Context, FixPath(L"SkyPixelShader.cso").c_str());
 
+	// Shadow shader
+	shadowVS = std::make_shared<SimpleVertexShader>(
+		Graphics::Device, Graphics::Context, FixPath(L"ShadowVertexShader.cso").c_str());
+
 	//Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> graniteSRV;
 	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> fabricSRV;
 
@@ -205,19 +209,19 @@ void Game::CreateGeometry()
 
 	Microsoft::WRL::ComPtr<ID3D11SamplerState> samplerState;
 
-	CreateWICTextureFromFile(Graphics::Device.Get(), Graphics::Context.Get(), FixPath(L"../../Assets/cobblestone_albedo.png").c_str(), 0,	 cobbleAlbedoSRV.GetAddressOf());
-	CreateWICTextureFromFile(Graphics::Device.Get(), Graphics::Context.Get(), FixPath(L"../../Assets/cobblestone_normals.png").c_str(), 0,	 cobbleNormalSRV.GetAddressOf());
-	CreateWICTextureFromFile(Graphics::Device.Get(), Graphics::Context.Get(), FixPath(L"../../Assets/cobblestone_metal.png").c_str(), 0,	 cobbleMetalSRV.GetAddressOf());
+	CreateWICTextureFromFile(Graphics::Device.Get(), Graphics::Context.Get(), FixPath(L"../../Assets/cobblestone_albedo.png").c_str(), 0, cobbleAlbedoSRV.GetAddressOf());
+	CreateWICTextureFromFile(Graphics::Device.Get(), Graphics::Context.Get(), FixPath(L"../../Assets/cobblestone_normals.png").c_str(), 0, cobbleNormalSRV.GetAddressOf());
+	CreateWICTextureFromFile(Graphics::Device.Get(), Graphics::Context.Get(), FixPath(L"../../Assets/cobblestone_metal.png").c_str(), 0, cobbleMetalSRV.GetAddressOf());
 	CreateWICTextureFromFile(Graphics::Device.Get(), Graphics::Context.Get(), FixPath(L"../../Assets/cobblestone_roughness.png").c_str(), 0, cobbleRoughnessSRV.GetAddressOf());
 
-	CreateWICTextureFromFile(Graphics::Device.Get(), Graphics::Context.Get(), FixPath(L"../../Assets/floor_albedo.png").c_str(), 0,	 floorAlbedoSRV.GetAddressOf());
-	CreateWICTextureFromFile(Graphics::Device.Get(), Graphics::Context.Get(), FixPath(L"../../Assets/floor_normals.png").c_str(), 0,	 floorNormalSRV.GetAddressOf());
-	CreateWICTextureFromFile(Graphics::Device.Get(), Graphics::Context.Get(), FixPath(L"../../Assets/floor_metal.png").c_str(), 0,	 floorMetalSRV.GetAddressOf());
+	CreateWICTextureFromFile(Graphics::Device.Get(), Graphics::Context.Get(), FixPath(L"../../Assets/floor_albedo.png").c_str(), 0, floorAlbedoSRV.GetAddressOf());
+	CreateWICTextureFromFile(Graphics::Device.Get(), Graphics::Context.Get(), FixPath(L"../../Assets/floor_normals.png").c_str(), 0, floorNormalSRV.GetAddressOf());
+	CreateWICTextureFromFile(Graphics::Device.Get(), Graphics::Context.Get(), FixPath(L"../../Assets/floor_metal.png").c_str(), 0, floorMetalSRV.GetAddressOf());
 	CreateWICTextureFromFile(Graphics::Device.Get(), Graphics::Context.Get(), FixPath(L"../../Assets/floor_roughness.png").c_str(), 0, floorRoughnessSRV.GetAddressOf());
 
-	CreateWICTextureFromFile(Graphics::Device.Get(), Graphics::Context.Get(), FixPath(L"../../Assets/wood_albedo.png").c_str(), 0,	 woodAlbedoSRV.GetAddressOf());
-	CreateWICTextureFromFile(Graphics::Device.Get(), Graphics::Context.Get(), FixPath(L"../../Assets/wood_normals.png").c_str(), 0,	 woodNormalSRV.GetAddressOf());
-	CreateWICTextureFromFile(Graphics::Device.Get(), Graphics::Context.Get(), FixPath(L"../../Assets/wood_metal.png").c_str(), 0,	 woodMetalSRV.GetAddressOf());
+	CreateWICTextureFromFile(Graphics::Device.Get(), Graphics::Context.Get(), FixPath(L"../../Assets/wood_albedo.png").c_str(), 0, woodAlbedoSRV.GetAddressOf());
+	CreateWICTextureFromFile(Graphics::Device.Get(), Graphics::Context.Get(), FixPath(L"../../Assets/wood_normals.png").c_str(), 0, woodNormalSRV.GetAddressOf());
+	CreateWICTextureFromFile(Graphics::Device.Get(), Graphics::Context.Get(), FixPath(L"../../Assets/wood_metal.png").c_str(), 0, woodMetalSRV.GetAddressOf());
 	CreateWICTextureFromFile(Graphics::Device.Get(), Graphics::Context.Get(), FixPath(L"../../Assets/wood_roughness.png").c_str(), 0, woodRoughnessSRV.GetAddressOf());
 
 	D3D11_SAMPLER_DESC sampleDesc = {};
@@ -228,6 +232,82 @@ void Game::CreateGeometry()
 	sampleDesc.MaxAnisotropy = 10;
 	sampleDesc.MaxLOD = D3D11_FLOAT32_MAX;
 	HRESULT res = Graphics::Device->CreateSamplerState(&sampleDesc, &samplerState);
+
+	// Shadows stuff
+	// Create the actual texture that will be the shadow map
+	
+	D3D11_TEXTURE2D_DESC shadowDesc = {};
+	shadowDesc.Width = 1024; // Ideally a power of 2 (like 1024)
+	shadowDesc.Height = 1024; // Ideally a power of 2 (like 1024)
+	shadowDesc.ArraySize = 1;
+	shadowDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
+	shadowDesc.CPUAccessFlags = 0;
+	shadowDesc.Format = DXGI_FORMAT_R32_TYPELESS;
+	shadowDesc.MipLevels = 1;
+	shadowDesc.MiscFlags = 0;
+	shadowDesc.SampleDesc.Count = 1;
+	shadowDesc.SampleDesc.Quality = 0;
+	shadowDesc.Usage = D3D11_USAGE_DEFAULT;
+	Microsoft::WRL::ComPtr<ID3D11Texture2D> shadowTexture;
+	Graphics::Device->CreateTexture2D(&shadowDesc, 0, shadowTexture.GetAddressOf());
+
+	// Create the depth/stencil view
+	D3D11_DEPTH_STENCIL_VIEW_DESC shadowDSDesc = {};
+	shadowDSDesc.Format = DXGI_FORMAT_D32_FLOAT;
+	shadowDSDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+	shadowDSDesc.Texture2D.MipSlice = 0;
+	Graphics::Device->CreateDepthStencilView(
+		shadowTexture.Get(),
+		&shadowDSDesc,
+		shadowDSV.GetAddressOf());
+
+	// Create the SRV for the shadow map
+	D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+	srvDesc.Format = DXGI_FORMAT_R32_FLOAT;
+	srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	srvDesc.Texture2D.MipLevels = 1;
+	srvDesc.Texture2D.MostDetailedMip = 0;
+	Graphics::Device->CreateShaderResourceView(
+		shadowTexture.Get(),
+		&srvDesc,
+		shadowSRV.GetAddressOf());
+
+	// Directional light projection matrix
+	// Needs a orthogonal projection matrix
+	DirectX::XMVECTOR directLightDir = DirectX::XMVECTOR{0, 30, 0, 0.0f};
+
+	DirectX::XMMATRIX lightView = DirectX::XMMatrixLookAtLH(
+		DirectX::XMVectorSet(0, 30, -30, 0),
+		DirectX::XMVectorSet(0, 0, 0, 0),
+		DirectX::XMVectorSet(0, 1, 0, 0));
+	DirectX::XMStoreFloat4x4(&lightViewMatrix, lightView);
+
+	// Projection matrix
+	float lightProjSize = 50.0f;
+	DirectX::XMMATRIX shadowProjMat = DirectX::XMMatrixOrthographicLH(
+		lightProjSize,
+		lightProjSize,
+		1.0f,
+		100.0f);
+	DirectX::XMStoreFloat4x4(&lightProjectionMatrix, shadowProjMat);
+
+	D3D11_RASTERIZER_DESC shadowRastDesc = {};
+	shadowRastDesc.FillMode = D3D11_FILL_SOLID;
+	shadowRastDesc.CullMode = D3D11_CULL_BACK;
+	shadowRastDesc.DepthClipEnable = true;
+	shadowRastDesc.DepthBias = 1000; // Min. precision units, not world units!
+	shadowRastDesc.SlopeScaledDepthBias = 1.0f; // Bias more based on slope
+	Graphics::Device->CreateRasterizerState(&shadowRastDesc, &shadowRasterizer);
+
+	D3D11_SAMPLER_DESC shadowSampDesc = {};
+	shadowSampDesc.Filter = D3D11_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR;
+	shadowSampDesc.ComparisonFunc = D3D11_COMPARISON_LESS;
+	shadowSampDesc.AddressU = D3D11_TEXTURE_ADDRESS_BORDER;
+	shadowSampDesc.AddressV = D3D11_TEXTURE_ADDRESS_BORDER;
+	shadowSampDesc.AddressW = D3D11_TEXTURE_ADDRESS_BORDER;
+	shadowSampDesc.BorderColor[0] = 1.0f; // Only need the first component
+	Graphics::Device->CreateSamplerState(&shadowSampDesc, &shadowSampler);
+	
 
 	std::shared_ptr<Material> mat1 = std::make_shared<Material>(XMFLOAT4(0.0f, 0.0f, 0.0f, 1.000f),vs,ps,XMFLOAT2(1,1),XMFLOAT2(0,0),0.0f);
 	mat1->AddSampler("BasicSampler", samplerState);
@@ -280,6 +360,14 @@ void Game::CreateGeometry()
 		samplerState,
 		skyPS,
 		skyVS);
+
+	// Move entities
+	entities[0].get()->GetTransform()->SetPosition(5, 0, 0);
+	entities[1].get()->GetTransform()->SetPosition(0, 0, 0);
+	entities[2].get()->GetTransform()->SetPosition(-5, 0, 0);
+	entities[3].get()->GetTransform()->SetPosition(-10, 0, 0);
+	entities[4].get()->GetTransform()->SetPosition(10, 0, 0);
+	entities[5].get()->GetTransform()->SetPosition(0, -5, 0);
 }
 
 
@@ -325,6 +413,41 @@ void Game::Draw(float deltaTime, float totalTime)
 		Graphics::Context->ClearDepthStencilView(Graphics::DepthBufferDSV.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
 	}
 	
+	// Shadow stuff needs to happen BEFORE the frame starts to render
+	Graphics::Context->ClearDepthStencilView(shadowDSV.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
+	ID3D11RenderTargetView* nullRTV{};
+	Graphics::Context->OMSetRenderTargets(1, &nullRTV, shadowDSV.Get());
+	Graphics::Context->RSSetState(shadowRasterizer.Get());
+
+
+	D3D11_VIEWPORT viewport = {};
+	viewport.Width = 1024.0f;
+	viewport.Height = 1024.0f;
+	viewport.MaxDepth = 1.0f;
+	Graphics::Context->RSSetViewports(1, &viewport);
+
+	shadowVS->SetShader();
+	shadowVS->SetMatrix4x4("view", lightViewMatrix);
+	shadowVS->SetMatrix4x4("projection", lightProjectionMatrix);
+	Graphics::Context->PSSetShader(0, 0, 0);
+	// Loop and draw all entities
+	for (auto& e : entities)
+	{
+		shadowVS->SetMatrix4x4("world", e->GetTransform()->GetWorldMatrix());
+		shadowVS->CopyAllBufferData();
+		// Draw the mesh directly to avoid the entity's material
+		e->GetMesh()->Draw();
+	}
+
+	viewport.Width = (float)Window::Width();
+	viewport.Height = (float)Window::Height();
+	Graphics::Context->RSSetViewports(1, &viewport);
+	Graphics::Context->OMSetRenderTargets(
+		1,
+		Graphics::BackBufferRTV.GetAddressOf(),
+		Graphics::DepthBufferDSV.Get());
+	Graphics::Context->RSSetState(0);
+		
 
 	// DRAW geometry
 	// - These steps are generally repeated for EACH object you draw
@@ -332,26 +455,34 @@ void Game::Draw(float deltaTime, float totalTime)
 	if (showTriangle)
 	{
 		for (int i=0;i<entities.size(); i++) {
-			entities[i]->Draw(cameras[currentCamIndex]);
+
+			entities[i]->GetMaterial()->GetVertexShader()->SetMatrix4x4("lightView", lightViewMatrix);
+			entities[i]->GetMaterial()->GetVertexShader()->SetMatrix4x4("lightProjection", lightProjectionMatrix);
+
 			entities[i]->GetMaterial()->GetPixelShader()->SetFloat3("ambient", ambientColor);
+
+			entities[i]->GetMaterial()->GetPixelShader()->SetShaderResourceView("ShadowMap", shadowSRV);
+			entities[i]->GetMaterial()->GetPixelShader()->SetSamplerState("ShadowSampler", shadowSampler);
+
 			entities[i]->GetMaterial()->GetPixelShader()->SetData("lights", &lights[0], sizeof(Light) * (int)lights.size());
+
+			entities[i]->Draw(cameras[currentCamIndex]);
 		}
 		float sinWave = (float)sin(totalTime);
-		// Move entities
-		entities[0].get()->GetTransform()->SetPosition(5, 0, 0);
-		entities[1].get()->GetTransform()->SetPosition(0,0, 0);
-		entities[2].get()->GetTransform()->SetPosition(-5,0,0);
-		entities[3].get()->GetTransform()->SetPosition(-10, 0, 0);
-		entities[4].get()->GetTransform()->SetPosition(10, 0, 0);
-		entities[5].get()->GetTransform()->SetPosition(15, 0, 0);
-		//entities[6].get()->GetTransform()->SetPosition(20, 0, 0);
-		//entities[7].get()->GetTransform()->SetPosition(25, 0, 0);
+
+
+		entities[5].get()->GetTransform()->SetScale(50, 1, 50);
+
+		entities[2].get()->GetTransform()->Rotate(deltaTime, -deltaTime, 0);
 
 		sky->Draw(cameras[currentCamIndex]);
 	}
 
 	ImGui::Render(); // Turns this frame’s UI into renderable triangles
 	ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData()); // Draws it to the screen
+
+	ID3D11ShaderResourceView* nullSRVs[8] = {};
+	Graphics::Context->PSSetShaderResources(0, 8, nullSRVs);
 	// Frame END
 	// - These should happen exactly ONCE PER FRAME
 	// - At the very end of the frame (after drawing *everything*)
@@ -513,6 +644,7 @@ void Game::BuildUI() {
 		ImGui::DragFloat3("Ambient color", &ambientColor.x,0.01f,0.0f,1.0f);
 		ImGui::TreePop();
 	}
+	ImGui::Image((ImTextureID)shadowSRV.Get(), ImVec2(256, 256));
 	ImGui::End();
 	
 }

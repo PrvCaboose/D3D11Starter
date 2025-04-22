@@ -21,7 +21,9 @@ Texture2D Albedo : register(t0);
 Texture2D NormalMap : register(t1);
 Texture2D RoughnessMap : register(t2);
 Texture2D MetalnessMap : register(t3);
+Texture2D ShadowMap : register(t4);
 SamplerState BasicSampler : register(s0); // "s" registers for samplers
+SamplerComparisonState ShadowSampler : register(s1);
 
 // --------------------------------------------------------
 // The entry point (main method) for our pixel shader
@@ -39,6 +41,21 @@ float4 main(VertexToPixel input) : SV_TARGET
 	//   interpolated for each pixel between the corresponding vertices 
 	//   of the triangle we're rendering
     
+    
+    // Shadow map calc
+    // Perspective divide
+    input.shadowMapPos /= input.shadowMapPos.w;
+    
+    // Convert normalized coords to UVS for sample
+    float2 shadowUV = input.shadowMapPos.xy * 0.5f + 0.5f;
+    shadowUV.y = 1 - shadowUV.y;
+    
+    // Get distances needed
+    float distToLight = input.shadowMapPos.z;
+    //float distToShadowMap = ShadowMap.Sample(ShadowSampler, shadowUV).r;
+    
+    float shadowAmount = ShadowMap.SampleCmpLevelZero(ShadowSampler, shadowUV, distToLight).r;
+
     float3 unpackedNormal = NormalMap.Sample(BasicSampler, input.UV).rgb * 2 - 1;
     float3 tangent = normalize(input.Tangent);
     input.Normal = normalize(input.Normal);
@@ -75,6 +92,10 @@ float4 main(VertexToPixel input) : SV_TARGET
             case LIGHT_DIRECTIONAL_TYPE:
                 // Increment total light for each light
                 totalLight += DirLight(currentLight, input.worldPosition, input.Normal, float3(albedoColor.rgb), roughness, cameraPosition, specularColor.rgb, metalness);
+                if (i == 0)
+                {
+                    totalLight *= shadowAmount;
+                }
                 break;
             case LIGHT_TYPE_POINT:
                 totalLight += PointLight(currentLight, input.worldPosition, input.Normal, float3(albedoColor.rgb), roughness, cameraPosition, specularColor.rgb, metalness);
