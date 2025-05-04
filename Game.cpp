@@ -33,6 +33,8 @@ namespace {
 	int currentCamIndex = 0;
 	std::string windowName = "Debug Inspector";
 	XMFLOAT3 ambientColor = XMFLOAT3(0.2f, 0.2f, 0.2f);
+	int blurRadius = 0;
+	int ppIsEnabled = 0; // change to 1 to disable custom post process
 }
 
 // --------------------------------------------------------
@@ -178,6 +180,8 @@ void Game::CreateGeometry()
 		Graphics::Device, Graphics::Context, FixPath(L"CustomPS.cso").c_str());
 	std::shared_ptr<SimplePixelShader> doubleTexPS = std::make_shared<SimplePixelShader>(
 		Graphics::Device, Graphics::Context, FixPath(L"TwoTexturePS.cso").c_str());
+	CustomPPPS = std::make_shared<SimplePixelShader>(
+		Graphics::Device, Graphics::Context, FixPath(L"CustomPPPS.cso").c_str());
 
 	// Sky related shaders
 	std::shared_ptr<SimpleVertexShader> skyVS = std::make_shared<SimpleVertexShader>(
@@ -188,6 +192,12 @@ void Game::CreateGeometry()
 	// Shadow shader
 	shadowVS = std::make_shared<SimpleVertexShader>(
 		Graphics::Device, Graphics::Context, FixPath(L"ShadowVertexShader.cso").c_str());
+
+	ppPS = std::make_shared<SimplePixelShader>(
+		Graphics::Device, Graphics::Context, FixPath(L"PostProcess.cso").c_str());
+	ppVS = std::make_shared<SimpleVertexShader>(
+		Graphics::Device, Graphics::Context, FixPath(L"FullScreenVS.cso").c_str());
+
 
 	//Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> graniteSRV;
 	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> fabricSRV;
@@ -307,6 +317,49 @@ void Game::CreateGeometry()
 	shadowSampDesc.AddressW = D3D11_TEXTURE_ADDRESS_BORDER;
 	shadowSampDesc.BorderColor[0] = 1.0f; // Only need the first component
 	Graphics::Device->CreateSamplerState(&shadowSampDesc, &shadowSampler);
+
+	// Sampler state for post processing
+	D3D11_SAMPLER_DESC ppSampDesc = {};
+	ppSampDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+	ppSampDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+	ppSampDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+	ppSampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+	ppSampDesc.MaxLOD = D3D11_FLOAT32_MAX;
+	Graphics::Device->CreateSamplerState(&ppSampDesc, ppSampler.GetAddressOf());
+
+	// Describe the texture we're creating
+	D3D11_TEXTURE2D_DESC textureDesc = {};
+	textureDesc.Width = Window::Width();
+	textureDesc.Height = Window::Height();
+	textureDesc.ArraySize = 1;
+	textureDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+	textureDesc.CPUAccessFlags = 0;
+	textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	textureDesc.MipLevels = 1;
+	textureDesc.MiscFlags = 0;
+	textureDesc.SampleDesc.Count = 1;
+	textureDesc.SampleDesc.Quality = 0;
+	textureDesc.Usage = D3D11_USAGE_DEFAULT;
+	// Create the resource (no need to track it after the views are created below)
+	Microsoft::WRL::ComPtr<ID3D11Texture2D> ppTexture;
+	Graphics::Device->CreateTexture2D(&textureDesc, 0, ppTexture.GetAddressOf());
+
+	// Create the Render Target View
+	D3D11_RENDER_TARGET_VIEW_DESC rtvDesc = {};
+	rtvDesc.Format = textureDesc.Format;
+	rtvDesc.Texture2D.MipSlice = 0;
+	rtvDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+	Graphics::Device->CreateRenderTargetView(
+		ppTexture.Get(),
+		&rtvDesc,
+		ppRTV.ReleaseAndGetAddressOf());
+	// Create the Shader Resource View
+	// By passing it a null description for the SRV, we
+	// get a "default" SRV that has access to the entire resource
+	Graphics::Device->CreateShaderResourceView(
+		ppTexture.Get(),
+		0,
+		ppSRV.ReleaseAndGetAddressOf());
 	
 
 	std::shared_ptr<Material> mat1 = std::make_shared<Material>(XMFLOAT4(0.0f, 0.0f, 0.0f, 1.000f),vs,ps,XMFLOAT2(1,1),XMFLOAT2(0,0),0.0f);
@@ -327,7 +380,6 @@ void Game::CreateGeometry()
 	mat3->AddTextureSRV("NormalMap", woodNormalSRV);
 	mat3->AddTextureSRV("RoughnessMap", woodRoughnessSRV);
 	mat3->AddTextureSRV("MetalnessMap", woodMetalSRV);
-
 
 	std::shared_ptr<GameEntity> e1 = std::make_shared<GameEntity>(cube,mat1);
 	std::shared_ptr<GameEntity> e2 = std::make_shared<GameEntity>(sphere,mat2);
@@ -408,9 +460,12 @@ void Game::Draw(float deltaTime, float totalTime)
 	// - These things should happen ONCE PER FRAME
 	// - At the beginning of Game::Draw() before drawing *anything*
 	{
+
 		// Clear the back buffer (erase what's on screen) and depth buffer
 		Graphics::Context->ClearRenderTargetView(Graphics::BackBufferRTV.Get(),	color);
 		Graphics::Context->ClearDepthStencilView(Graphics::DepthBufferDSV.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
+
+		
 	}
 	
 	// Shadow stuff needs to happen BEFORE the frame starts to render
@@ -447,7 +502,11 @@ void Game::Draw(float deltaTime, float totalTime)
 		Graphics::BackBufferRTV.GetAddressOf(),
 		Graphics::DepthBufferDSV.Get());
 	Graphics::Context->RSSetState(0);
-		
+
+	// Post process
+	const float num[4] = { 0.0f,0.0f,0.0f,1.0f };
+	Graphics::Context->ClearRenderTargetView(ppRTV.Get(), num);
+	Graphics::Context->OMSetRenderTargets(1, ppRTV.GetAddressOf(), Graphics::DepthBufferDSV.Get());
 
 	// DRAW geometry
 	// - These steps are generally repeated for EACH object you draw
@@ -478,15 +537,49 @@ void Game::Draw(float deltaTime, float totalTime)
 		sky->Draw(cameras[currentCamIndex]);
 	}
 
-	ImGui::Render(); // Turns this frame’s UI into renderable triangles
-	ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData()); // Draws it to the screen
+	// Back to the screen (no depth buffer necessary at this point)
+	Graphics::Context->OMSetRenderTargets(1, Graphics::BackBufferRTV.GetAddressOf(), 0);
 
-	ID3D11ShaderResourceView* nullSRVs[8] = {};
-	Graphics::Context->PSSetShaderResources(0, 8, nullSRVs);
+	// Activate shaders and bind resources
+	// Also set any required cbuffer data (not shown)
+	ppVS->SetShader();
+	ppPS->SetShader();
+	ppPS->SetShaderResourceView("Pixels", ppSRV);
+	ppPS->SetSamplerState("ClampSampler", ppSampler);
+
+	ppPS->SetInt("blurRadius",blurRadius);
+	ppPS->SetFloat("pixelWidth", 1.0f / (float)Window::Width());
+	ppPS->SetFloat("pixelHeight", 1.0f / (float)Window::Height());
+	ppPS->CopyAllBufferData();
+
+
+
+
+	// Use ppSRV to get pixels of screen
+	// use that as input to another customPS, and set that shader
+	CustomPPPS->SetShader();
+	CustomPPPS->SetShaderResourceView("Pixels", ppSRV);
+	CustomPPPS->SetSamplerState("BasicSampler", ppSampler);
+
+
+	XMFLOAT2 camPos = XMFLOAT2(cameras[currentCamIndex]->GetPosition().x, cameras[currentCamIndex]->GetPosition().y);
+	
+	CustomPPPS->SetFloat2("focusPoint", camPos);
+	CustomPPPS->SetInt("enabled",ppIsEnabled);
+	CustomPPPS->CopyAllBufferData();
+
+	Graphics::Context->Draw(3, 0); // Draw exactly 3 vertices (one triangle)
+
+	ID3D11ShaderResourceView* nullSRVs[128] = {};
+	Graphics::Context->PSSetShaderResources(0, 128, nullSRVs);
+
+
 	// Frame END
 	// - These should happen exactly ONCE PER FRAME
 	// - At the very end of the frame (after drawing *everything*)
 	{
+		ImGui::Render(); // Turns this frame’s UI into renderable triangles
+		ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData()); // Draws it to the screen
 		// Present at the end of the frame
 		bool vsync = Graphics::VsyncState();
 		Graphics::SwapChain->Present(
@@ -644,7 +737,21 @@ void Game::BuildUI() {
 		ImGui::DragFloat3("Ambient color", &ambientColor.x,0.01f,0.0f,1.0f);
 		ImGui::TreePop();
 	}
-	ImGui::Image((ImTextureID)shadowSRV.Get(), ImVec2(256, 256));
+	if (ImGui::TreeNode("Shadow Map")) {
+		ImGui::Image((ImTextureID)shadowSRV.Get(), ImVec2(256, 256));
+	}
+	if (ImGui::TreeNode("Post Process")) {
+		if (ImGui::TreeNode("Blur")) {
+			ImGui::DragInt("Blur Radius",&blurRadius,0.5,0,50);
+			ImGui::TreePop();
+		}
+		if (ImGui::TreeNode("Chromatic Abberation")) {
+			ImGui::Checkbox("Enabled",(bool*)& ppIsEnabled);
+			ImGui::Text("%d",ppIsEnabled);
+			ImGui::TreePop();
+		}
+		ImGui::TreePop();
+	}
 	ImGui::End();
 	
 }
